@@ -1,7 +1,7 @@
 from flytekit import ImageSpec, Resources
 from union.actor import ActorEnvironment
 
-image = ImageSpec(
+container_image = ImageSpec(
     requirements="requirements.txt",
 )
 

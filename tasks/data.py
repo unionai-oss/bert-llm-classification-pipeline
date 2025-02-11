@@ -1,9 +1,21 @@
-# %% download dataset
+'''
+This module contains tasks for downloading the dataset and visualizing the data.
+'''
+
+from union import task, Resources, current_context, Deck
+from flytekit.types.directory import FlyteDirectory
+from flytekit.types.file import FlyteFile
+from pathlib import Path
+from containers import container_image
+
+
+# ---------------------------
+# download dataset
 # ---------------------------
 @task(
-    container_image=image,
+    container_image=container_image,
     cache=True,
-    cache_version="v3",
+    cache_version="0.001",
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_dataset() -> FlyteDirectory:
@@ -17,10 +29,11 @@ def download_dataset() -> FlyteDirectory:
     return dataset_cache_dir
 
 
-# %% visualize data
+# ---------------------------
+# visualize data
 # ---------------------------
 @task(
-    container_image=image,
+    container_image=container_image,
     enable_deck=True,
     requests=Resources(cpu="2", mem="2Gi"),
 )
