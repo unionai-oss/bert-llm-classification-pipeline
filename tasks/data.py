@@ -22,28 +22,36 @@ TestImdbDataset = Artifact(name="test_imdb_dataset")
 @task(
     container_image=container_image,
     cache=True,
-    cache_version="0.001",
+    cache_version="0.002",
     requests=Resources(cpu="2", mem="2Gi"),
 )
-def download_dataset() -> tuple[Dataset, Dataset, Dataset]:
+def download_dataset() -> tuple[FlyteFile, FlyteFile, FlyteFile]:
     from datasets import load_dataset
     from sklearn.model_selection import train_test_split
     import pandas as pd
 
     # Load IMDB dataset
     dataset = load_dataset("imdb")
-    df = dataset['train'].to_pandas()
-
-    # Stratified split for validation
-    train_df, val_df = train_test_split(df, test_size=0.2, stratify=df['label'], random_state=42)
+    train_df = dataset['train'].to_pandas()
     test_df = dataset['test'].to_pandas()
 
-    # Convert back to Hugging Face datasets and return directly
-    train_dataset = Dataset.from_pandas(train_df)
-    val_dataset = Dataset.from_pandas(val_df)
-    test_dataset = Dataset.from_pandas(test_df)
+    # Split training set into train and validation sets
+    train_df, val_df = train_test_split(train_df, test_size=0.2, stratify=train_df['label'], random_state=42)
 
-    return train_dataset, val_dataset, test_dataset
+    working_dir = Path(current_context().working_directory)
+    data_dir = working_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save datasets as CSV files
+    train_path = data_dir / "train.csv"
+    val_path = data_dir / "val.csv"
+    test_path = data_dir / "test.csv"
+
+    train_df.to_csv(train_path, index=False)
+    val_df.to_csv(val_path, index=False)
+    test_df.to_csv(test_path, index=False)
+
+    return FlyteFile(train_path), FlyteFile(val_path), FlyteFile(test_path)
 
 
 # ---------------------------
@@ -54,23 +62,23 @@ def download_dataset() -> tuple[Dataset, Dataset, Dataset]:
     enable_deck=True,
     requests=Resources(cpu="2", mem="2Gi"),
 )
-def visualize_data(train_dataset: Dataset, val_dataset: Dataset, test_dataset: Dataset):
-    import matplotlib.pyplot as plt
+def visualize_data(train_dataset: FlyteFile, val_dataset: FlyteFile, test_dataset: FlyteFile):
     import pandas as pd
+    import matplotlib.pyplot as plt
     import base64
     from textwrap import dedent
 
     ctx = current_context()
 
-    # Convert datasets to DataFrames for visualization
-    train_df = pd.DataFrame(train_dataset)
-    val_df = pd.DataFrame(val_dataset)
-    test_df = pd.DataFrame(test_dataset)
+    # Load datasets from CSV files
+    train_df = pd.read_csv(train_dataset.download())
+    val_df = pd.read_csv(val_dataset.download())
+    test_df = pd.read_csv(test_dataset.download())
 
     # Create the deck for visualization
     deck = Deck("Dataset Analysis")
 
-    # Sample reviews from training, validation, and test datasets
+    # Sample reviews from the datasets
     train_positive_review = train_df[train_df['label'] == 1].iloc[0]['text']
     train_negative_review = train_df[train_df['label'] == 0].iloc[0]['text']
     val_positive_review = val_df[val_df['label'] == 1].iloc[0]['text']

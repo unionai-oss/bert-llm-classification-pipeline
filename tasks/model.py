@@ -43,6 +43,7 @@ def download_model(model_name: str) -> FlyteDirectory:
     
     return FlyteDirectory(saved_model_dir)
 
+
 # ---------------------------
 # train model
 # ---------------------------
@@ -52,18 +53,30 @@ def download_model(model_name: str) -> FlyteDirectory:
 )
 def train_model(
     model_dir: FlyteDirectory, 
-    train_dataset: Dataset, 
-    val_dataset: Dataset, 
+    train_dataset: FlyteFile, 
+    val_dataset: FlyteFile, 
     epochs: int = 3
-) -> BertForSequenceClassification:
+) -> FlyteDirectory:
     from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+    import pandas as pd
+    from datasets import Dataset
 
-    model_dir.download()
+    # Download the model directory locally
+    local_model_dir = model_dir.download()
+
     # Load model and tokenizer from saved directory
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
+    tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
-    # Tokenization and training logic here
+    # Load datasets from CSV and limit for faster training during tutorial
+    train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
+    val_df = pd.read_csv(val_dataset.download()).sample(n=100, random_state=42)
+
+    # Convert DataFrames to Hugging Face datasets
+    train_dataset = Dataset.from_pandas(train_df)
+    val_dataset = Dataset.from_pandas(val_df)
+
+    # Tokenization and training logic
     def tokenizer_function(examples):
         return tokenizer(examples["text"], padding="max_length", truncation=True)
 
@@ -80,7 +93,13 @@ def train_model(
     )
 
     trainer.train()
-    return model
+
+    # Save the trained model
+    output_dir = Path(current_context().working_directory) / "trained_model"
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+
+    return FlyteDirectory(output_dir)
 
 
 # ---------------------------
@@ -92,16 +111,27 @@ def train_model(
     requests=Resources(cpu="2", mem="12Gi", gpu="1"),
 )
 def evaluate_model(
-    model_dir: FlyteDirectory,
-    test_dataset: Dataset,
+    trained_model_dir: FlyteDirectory,
+    test_dataset: FlyteFile
 ) -> dict:
     from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+    import pandas as pd
+    from datasets import Dataset
     import numpy as np
 
+    # Download the model directory locally
+    local_model_dir = trained_model_dir.download()
+
     # Load model and tokenizer from the saved directory
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
+    tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
+
+    # Load and prepare test dataset
+    # test_df = pd.read_csv(test_dataset.download())
+    test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
+
+    test_dataset = Dataset.from_pandas(test_df)
 
     def tokenize_function(examples):
         return tokenizer(examples["text"], padding="max_length", truncation=True)
