@@ -17,7 +17,6 @@ def train_pipeline(model_name: str = "bert-base-uncased",
                     extra_test_text: list[str] = [
                         "This is a great movie!",
                         "This is a bad movie!",
-                        "This movie is so-so."
     ]) -> None:
 
     train_dataset, val_dataset, test_dataset = download_dataset()
