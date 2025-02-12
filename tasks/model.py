@@ -2,13 +2,23 @@
 This file contains the tasks that are used to download, train and evaluate the model.
 '''
 
-from union import task, Resources, current_context, Deck
+from union import task, Resources, current_context, Deck, Artifact
 from flytekit.types.directory import FlyteDirectory
 from flytekit.types.file import FlyteFile
 from pathlib import Path
 from containers import container_image
 from datasets import Dataset
 from transformers import BertForSequenceClassification
+from typing_extensions import Annotated
+
+
+# Define Artifact Specifications
+# TrainImdbDataset = Artifact(name="train_imdb_dataset")
+# ValImdbDataset = Artifact(name="val_imdb_dataset")
+# TestImdbDataset = Artifact(name="test_imdb_dataset")
+FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
+
+
 
 
 # ---------------------------
@@ -56,7 +66,8 @@ def train_model(
     train_dataset: FlyteFile, 
     val_dataset: FlyteFile, 
     epochs: int = 3
-) -> FlyteDirectory:
+) -> Annotated[FlyteDirectory, FineTunedImdbModel]:
+    
     from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
     import pandas as pd
     from datasets import Dataset
@@ -99,8 +110,8 @@ def train_model(
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    return FlyteDirectory(output_dir)
-
+    # return FlyteDirectory(output_dir)
+    return FineTunedImdbModel.create_from(output_dir)
 
 # ---------------------------
 # evaluate model
