@@ -28,7 +28,12 @@ if st.button("Analyze"):
         outputs = model(**inputs)
         predictions = outputs.logits.argmax(dim=-1)
         labels = ["NEGATIVE", "POSITIVE"]  # Adjust according to your model's labels
-        st.success(f"Predicted sentiment: {labels[predictions.item()]}")
+
+        sentiment = labels[predictions.item()]
+        if sentiment == "NEGATIVE":
+            st.error(f"Predicted sentiment: {sentiment}")
+        else:
+            st.success(f"Predicted sentiment: {sentiment}")
     except Exception as e:
         st.error(f"Prediction error: {e}")
 
