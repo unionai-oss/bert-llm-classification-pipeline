@@ -8,6 +8,8 @@ from flytekit.types.file import FlyteFile
 from pathlib import Path
 from datasets import Dataset
 from containers import container_image
+from typing_extensions import Annotated
+
 
 # Define Artifact Specifications
 RawImdbDataset = Artifact(name="raw_imdb_dataset")
@@ -22,10 +24,13 @@ TestImdbDataset = Artifact(name="test_imdb_dataset")
 @task(
     container_image=container_image,
     cache=True,
-    cache_version="0.002",
+    cache_version="0.003",
     requests=Resources(cpu="2", mem="2Gi"),
 )
-def download_dataset() -> tuple[FlyteFile, FlyteFile, FlyteFile]:
+def download_dataset() -> tuple[Annotated[FlyteFile, TrainImdbDataset], 
+                                Annotated[FlyteFile, ValImdbDataset],
+                                Annotated[FlyteFile, TestImdbDataset]]:
+
     from datasets import load_dataset
     from sklearn.model_selection import train_test_split
     import pandas as pd
@@ -51,7 +56,9 @@ def download_dataset() -> tuple[FlyteFile, FlyteFile, FlyteFile]:
     val_df.to_csv(val_path, index=False)
     test_df.to_csv(test_path, index=False)
 
-    return FlyteFile(train_path), FlyteFile(val_path), FlyteFile(test_path)
+    return (TrainImdbDataset.create_from(train_path),
+            ValImdbDataset.create_from(val_path), 
+            TestImdbDataset.create_from(test_path))
 
 
 # ---------------------------
