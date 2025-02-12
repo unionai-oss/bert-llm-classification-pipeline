@@ -4,7 +4,7 @@ import os
 from union import Artifact, ImageSpec, Resources
 from union.app import App, Input
 
-# Define the artifact that holds the iris model.
+# Define the artifact that holds the BERT model.
 FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
 
 # Define the container image including the required packages.
