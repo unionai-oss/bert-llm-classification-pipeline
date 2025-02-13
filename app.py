@@ -1,6 +1,7 @@
 """A Union app that uses hugging face and Streamlit"""
 
 import os
+
 from union import Artifact, ImageSpec, Resources
 from union.app import App, Input
 
