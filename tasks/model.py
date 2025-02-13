@@ -1,24 +1,19 @@
-'''
+"""
 This file contains the tasks that are used to download, train and evaluate the model.
-'''
+"""
 
-from union import task, Resources, current_context, Deck, Artifact
+from pathlib import Path
+
+from datasets import Dataset
 from flytekit.types.directory import FlyteDirectory
 from flytekit.types.file import FlyteFile
-from pathlib import Path
-from containers import container_image
-from datasets import Dataset
-from transformers import BertForSequenceClassification
 from typing_extensions import Annotated
+from union import Artifact, Deck, Resources, current_context, task
 
+from containers import container_image
 
 # Define Artifact Specifications
-# TrainImdbDataset = Artifact(name="train_imdb_dataset")
-# ValImdbDataset = Artifact(name="val_imdb_dataset")
-# TestImdbDataset = Artifact(name="test_imdb_dataset")
 FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
-
-
 
 
 # ---------------------------
@@ -31,8 +26,8 @@ FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_model(model_name: str) -> FlyteDirectory:
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
     import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     working_dir = Path(current_context().working_directory)
     saved_model_dir = working_dir / "saved_model"
@@ -48,9 +43,11 @@ def download_model(model_name: str) -> FlyteDirectory:
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Save model and tokenizer
-    model.save_pretrained(saved_model_dir,)
+    model.save_pretrained(
+        saved_model_dir,
+    )
     tokenizer.save_pretrained(saved_model_dir)
-    
+
     return FlyteDirectory(saved_model_dir)
 
 
@@ -62,15 +59,16 @@ def download_model(model_name: str) -> FlyteDirectory:
     requests=Resources(cpu="4", mem="12Gi", gpu="1"),
 )
 def train_model(
-    model_dir: FlyteDirectory, 
-    train_dataset: FlyteFile, 
-    val_dataset: FlyteFile, 
-    epochs: int = 3
+    model_dir: FlyteDirectory,
+    train_dataset: FlyteFile,
+    val_dataset: FlyteFile,
+    epochs: int = 3,
 ) -> Annotated[FlyteDirectory, FineTunedImdbModel]:
-    
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+
     import pandas as pd
     from datasets import Dataset
+    from transformers import (AutoModelForSequenceClassification,
+                              AutoTokenizer, Trainer, TrainingArguments)
 
     # Download the model directory locally
     local_model_dir = model_dir.download()
@@ -94,7 +92,9 @@ def train_model(
     tokenized_train_dataset = train_dataset.map(tokenizer_function)
     tokenized_val_dataset = val_dataset.map(tokenizer_function)
 
-    training_args = TrainingArguments(output_dir="./results", num_train_epochs=epochs, evaluation_strategy="epoch")
+    training_args = TrainingArguments(
+        output_dir="./results", num_train_epochs=epochs, evaluation_strategy="epoch"
+    )
 
     trainer = Trainer(
         model=model,
@@ -113,6 +113,7 @@ def train_model(
     # return FlyteDirectory(output_dir)
     return FineTunedImdbModel.create_from(output_dir)
 
+
 # ---------------------------
 # evaluate model
 # ---------------------------
@@ -121,15 +122,14 @@ def train_model(
     enable_deck=True,
     requests=Resources(cpu="2", mem="12Gi", gpu="1"),
 )
-def evaluate_model(
-    trained_model_dir: FlyteDirectory,
-    test_dataset: FlyteFile
-) -> dict:
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
-    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -> dict:
+    import numpy as np
     import pandas as pd
     from datasets import Dataset
-    import numpy as np
+    from sklearn.metrics import (accuracy_score, f1_score, precision_score,
+                                 recall_score)
+    from transformers import (AutoModelForSequenceClassification,
+                              AutoTokenizer, Trainer, TrainingArguments)
 
     # Download the model directory locally
     local_model_dir = trained_model_dir.download()
@@ -164,8 +164,8 @@ def evaluate_model(
         }
 
     training_args = TrainingArguments(
-        output_dir="./results", 
-        per_device_eval_batch_size=16, 
+        output_dir="./results",
+        per_device_eval_batch_size=16,
         dataloader_drop_last=False,
     )
 
