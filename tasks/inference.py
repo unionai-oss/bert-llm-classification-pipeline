@@ -30,6 +30,8 @@ def predict_batch_sentiment(
     # Perform batch prediction
     predictions = nlp_pipeline(texts, batch_size=8)
 
+    return predictions
+
 
 # ---------------------------
 # Batch inference with Union Actors
