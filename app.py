@@ -35,6 +35,7 @@ streamlit_app = App(
     port=8082,
     include=["./main.py"],  # Include your Streamlit code.
     args=["streamlit", "run", "main.py", "--server.port", "8082"],
+    # requires_auth=False # Uncomment to make app public.
 )
 
 # union deploy apps app.py simple-streamlit-iris
