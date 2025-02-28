@@ -3,7 +3,9 @@
 import os
 
 from union import Artifact, ImageSpec, Resources
-from union.app import App, Input
+from union.app import App, Input, ScalingMetric
+from datetime import timedelta
+
 
 # Define the artifact that holds the BERT model.
 FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
@@ -35,6 +37,10 @@ streamlit_app = App(
     port=8082,
     include=["./main.py"],  # Include your Streamlit code.
     args=["streamlit", "run", "main.py", "--server.port", "8082"],
+    min_replicas=0,
+    max_replicas=2,
+    scaledown_after=timedelta(minutes=5),
+    scaling_metric=ScalingMetric.Concurrency(2),
     # requires_auth=False # Uncomment to make app public.
 )
 
