@@ -17,7 +17,7 @@ image_spec = ImageSpec(
         "transformers==4.48.3",
         "union-runtime>=0.1.10",
         "accelerate==1.3.0",
-        "streamlit",  # For the UI
+        "streamlit==1.43.2",  # For the UI
     ],
     registry=os.getenv("REGISTRY"),
 )
