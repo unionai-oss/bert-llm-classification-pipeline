@@ -44,4 +44,4 @@ streamlit_app = App(
     # requires_auth=False # Uncomment to make app public.
 )
 
-# union deploy apps app.py simple-streamlit-iris
+# union deploy apps app.py bert-sentiment-analysis
