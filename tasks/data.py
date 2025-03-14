@@ -25,7 +25,7 @@ TestImdbDataset = Artifact(name="test_imdb_dataset")
 @task(
     container_image=container_image,
     cache=True,
-    cache_version="0.003",
+    cache_version="0.004",
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_dataset() -> tuple[
@@ -150,25 +150,25 @@ def visualize_data(
         <h2 style="color: #2C3E50;">Dataset Analysis</h2>
 
         <h3 style="color: #2980B9;">Training Data Summary</h3>
+        <img src="data:image/png;base64,{train_image_base64}" alt="Train Data Label Distribution" width="600">
         Shape: {train_df.shape} <br>
         Label Distribution: {train_df['label'].value_counts()} <br>
         <p><strong>Positive Review:</strong> {train_positive_review}</p>
         <p><strong>Negative Review:</strong> {train_negative_review}</p>
-        <img src="data:image/png;base64,{train_image_base64}" alt="Train Data Label Distribution" width="600">
 
         <h3 style="color: #2980B9;">Validation Data Summary</h3>
+        <img src="data:image/png;base64,{val_image_base64}" alt="Validation Data Label Distribution" width="600">
         Shape: {val_df.shape} <br>
         Label Distribution: {val_df['label'].value_counts()} <br>
         <p><strong>Positive Review:</strong> {val_positive_review}</p>
         <p><strong>Negative Review:</strong> {val_negative_review}</p>
-        <img src="data:image/png;base64,{val_image_base64}" alt="Validation Data Label Distribution" width="600">
 
         <h3 style="color: #2980B9;">Test Data Summary</h3>
+        <img src="data:image/png;base64,{test_image_base64}" alt="Test Data Label Distribution" width="600">
         Shape: {test_df.shape} <br>
         Label Distribution: {test_df['label'].value_counts()} <br>
         <p><strong>Positive Review:</strong> {test_positive_review}</p>
         <p><strong>Negative Review:</strong> {test_negative_review}</p>
-        <img src="data:image/png;base64,{test_image_base64}" alt="Test Data Label Distribution" width="600">
     </div>
     """
     )
