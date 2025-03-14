@@ -15,7 +15,7 @@ image_spec = ImageSpec(
     name="union-serve-bert-sentiment-analysis",
     packages=[
         "transformers==4.48.3",
-        "union-runtime>=0.1.10",
+        "union-runtime>=0.1.11",
         "accelerate==1.3.0",
         "streamlit==1.43.2",  # For the UI
     ],
@@ -36,7 +36,8 @@ streamlit_app = App(
     limits=Resources(cpu="1", mem="4Gi", gpu="1"),
     port=8082,
     include=["./main.py"],  # Include your Streamlit code.
-    args=["streamlit", "run", "main.py", "--server.port", "8082"],
+    # args=["streamlit", "run", "main.py", "--server.port", "8082"],
+    args="streamlit run main.py --server.port 8082",
     min_replicas=0,
     max_replicas=2,
     scaledown_after=timedelta(minutes=5),
