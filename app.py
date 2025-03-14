@@ -36,10 +36,9 @@ streamlit_app = App(
     limits=Resources(cpu="1", mem="4Gi", gpu="1"),
     port=8082,
     include=["./main.py"],  # Include your Streamlit code.
-    # args=["streamlit", "run", "main.py", "--server.port", "8082"],
-    args="streamlit run main.py --server.port 8082",
+    args=["streamlit", "run", "main.py", "--server.port", "8082"],
     min_replicas=0,
-    max_replicas=2,
+    max_replicas=1,
     scaledown_after=timedelta(minutes=5),
     scaling_metric=ScalingMetric.Concurrency(2),
     # requires_auth=False # Uncomment to make app public.
