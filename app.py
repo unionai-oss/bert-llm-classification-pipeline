@@ -5,6 +5,7 @@ import os
 from union import Artifact, ImageSpec, Resources
 from union.app import App, Input, ScalingMetric
 from datetime import timedelta
+from flytekit.extras.accelerators import L4, GPUAccelerator
 
 
 # Define the artifact that holds the BERT model.
@@ -16,9 +17,10 @@ image_spec = ImageSpec(
     packages=[
         "transformers==4.48.3",
         "union-runtime>=0.1.11",
-        "accelerate==1.3.0",
-        "streamlit==1.43.2",  # For the UI
+        "accelerate==1.5.2",
+        "streamlit==1.43.2",
     ],
+    builder="union",
     registry=os.getenv("REGISTRY"),
 )
 
@@ -33,7 +35,9 @@ streamlit_app = App(
         )
     ],
     container_image=image_spec,
-    limits=Resources(cpu="1", mem="4Gi", gpu="1"),
+    limits=Resources(cpu="2", mem="24Gi", gpu="1", ephemeral_storage="20Gi"),
+    requests=Resources(cpu="2", mem="24Gi", gpu="1", ephemeral_storage="20Gi"),
+    accelerator=L4,
     port=8082,
     include=["./main.py"],  # Include your Streamlit code.
     args=["streamlit", "run", "main.py", "--server.port", "8082"],
