@@ -1,7 +1,7 @@
-datasets==3.2.0
-union==0.1.151
-flytekit==1.15.0
-python-dotenv==1.0.1
+datasets>=3.2.0
+union>=0.1.151
+flytekit>=1.15.0
+python-dotenv>=1.0.1
 transformers>=4.50.3
 torch>=2.6.0
 accelerate>=1.5.2
