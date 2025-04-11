@@ -25,7 +25,7 @@ TestImdbDataset = Artifact(name="test_imdb_dataset")
 @task(
     container_image=container_image,
     cache=True,
-    cache_version="0.004",
+    cache_version="1",
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_dataset() -> tuple[

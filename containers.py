@@ -3,7 +3,7 @@ from union.actor import ActorEnvironment
 
 container_image = ImageSpec(
     requirements="requirements.txt",
-    builder="union" 
+    builder="union",
 )
 
 actor = ActorEnvironment(

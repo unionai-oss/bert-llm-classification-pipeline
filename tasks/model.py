@@ -22,7 +22,7 @@ FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
 @task(
     container_image=container_image,
     cache=True,
-    cache_version="0.008",
+    cache_version="1",
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_model(model_name: str) -> FlyteDirectory:
@@ -52,7 +52,7 @@ def download_model(model_name: str) -> FlyteDirectory:
 
 
 # ---------------------------
-# train model
+# full fine-tune model
 # ---------------------------
 @task(
     container_image=container_image,
