@@ -67,8 +67,12 @@ def train_model(
 
     import pandas as pd
     from datasets import Dataset
-    from transformers import (AutoModelForSequenceClassification,
-                              AutoTokenizer, Trainer, TrainingArguments)
+    from transformers import (
+        AutoModelForSequenceClassification,
+        AutoTokenizer,
+        Trainer,
+        TrainingArguments,
+    )
 
     # Download the model directory locally
     local_model_dir = model_dir.download()
@@ -126,10 +130,13 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     import numpy as np
     import pandas as pd
     from datasets import Dataset
-    from sklearn.metrics import (accuracy_score, f1_score, precision_score,
-                                 recall_score)
-    from transformers import (AutoModelForSequenceClassification,
-                              AutoTokenizer, Trainer, TrainingArguments)
+    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+    from transformers import (
+        AutoModelForSequenceClassification,
+        AutoTokenizer,
+        Trainer,
+        TrainingArguments,
+    )
 
     # Download the model directory locally
     local_model_dir = trained_model_dir.download()
