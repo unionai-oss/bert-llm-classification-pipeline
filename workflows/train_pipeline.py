@@ -42,6 +42,5 @@ def train_pipeline(
     # Perform batch inference
     predict_batch_sentiment(trained_model_dir=trained_model_dir, texts=extra_test_text)
 
-
 # Run model training pipeline:
 #!union run --remote workflows/train_pipeline.py train_pipeline
