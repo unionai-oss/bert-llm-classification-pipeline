@@ -135,6 +135,10 @@ def train_model(
 
     trainer.train()
 
+    # Merge LoRA weights into base model
+    if tuning_method in {"lora", "qlora"}:
+        model = model.merge_and_unload()
+
     output_dir = Path(current_context().working_directory) / "trained_model"
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
