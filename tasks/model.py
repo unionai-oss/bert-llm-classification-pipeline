@@ -99,7 +99,7 @@ def train_model(
             local_model_dir,
             quantization_config=bnb_config,
             torch_dtype=torch.bfloat16,
-            # device_map="cuda", # or "auto" for automatic device placement
+            # device_map="auto", # use this for most models if implemented
         )
 
 
@@ -170,6 +170,67 @@ def train_model(
 # ---------------------------
 # evaluate model
 # ---------------------------
+# @task(
+#     container_image=container_image,
+#     enable_deck=True,
+#     requests=Resources(cpu="2", mem="12Gi", gpu="1"),
+# )
+# def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -> dict:
+#     import numpy as np
+#     import pandas as pd
+#     from datasets import Dataset
+#     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+#     from transformers import (
+#         AutoModelForSequenceClassification,
+#         AutoTokenizer,
+#         Trainer,
+#         TrainingArguments,
+#     )
+
+#     local_model_dir = trained_model_dir.download()
+#     model = AutoModelForSequenceClassification.from_pretrained(local_model_dir,
+#                                                                 torch_dtype="auto",
+#                                                                 load_in_4bit=False, 
+#                                                                 # device_map="auto",
+#                                                                 )
+#     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
+
+#     test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
+#     test_dataset_hf = Dataset.from_pandas(test_df)
+
+#     def tokenize_function(examples):
+#         return tokenizer(examples["text"], padding="max_length", truncation=True)
+
+#     tokenized_test = test_dataset_hf.map(tokenize_function)
+
+#     def compute_metrics(eval_pred):
+#         logits, labels = eval_pred
+#         predictions = np.argmax(logits, axis=-1)
+#         return {
+#             "accuracy": accuracy_score(labels, predictions),
+#             "f1": f1_score(labels, predictions, average="weighted"),
+#             "precision": precision_score(labels, predictions, average="weighted"),
+#             "recall": recall_score(labels, predictions, average="weighted"),
+#         }
+
+#     training_args = TrainingArguments(
+#         output_dir="./results",
+#         per_device_eval_batch_size=16,
+#         dataloader_drop_last=False,
+#     )
+
+#     trainer = Trainer(
+#         model=model,
+#         args=training_args,
+#         eval_dataset=tokenized_test,
+#         compute_metrics=compute_metrics,
+#     )
+
+#     return trainer.evaluate()
+
+# ---------------------------
+# evaluate model
+# ---------------------------
 @task(
     container_image=container_image,
     enable_deck=True,
@@ -180,46 +241,45 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     import pandas as pd
     from datasets import Dataset
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-    from transformers import (
-        AutoModelForSequenceClassification,
-        AutoTokenizer,
-        Trainer,
-        TrainingArguments,
-    )
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
+    # Download model locally
     local_model_dir = trained_model_dir.download()
-    model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
+
+    # Load model and tokenizer
+    model = AutoModelForSequenceClassification.from_pretrained(
+        local_model_dir,
+        torch_dtype="auto",
+        load_in_4bit=False,  # Important: for evaluation, avoid loading in quantized 4-bit unless you really want to
+    )
     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
+    # Load and prepare the test dataset
     test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
-    test_dataset_hf = Dataset.from_pandas(test_df)
 
-    def tokenize_function(examples):
-        return tokenizer(examples["text"], padding="max_length", truncation=True)
-
-    tokenized_test = test_dataset_hf.map(tokenize_function)
-
-    def compute_metrics(eval_pred):
-        logits, labels = eval_pred
-        predictions = np.argmax(logits, axis=-1)
-        return {
-            "accuracy": accuracy_score(labels, predictions),
-            "f1": f1_score(labels, predictions, average="weighted"),
-            "precision": precision_score(labels, predictions, average="weighted"),
-            "recall": recall_score(labels, predictions, average="weighted"),
-        }
-
-    training_args = TrainingArguments(
-        output_dir="./results",
-        per_device_eval_batch_size=16,
-        dataloader_drop_last=False,
-    )
-
-    trainer = Trainer(
+    # Use a pipeline for evaluation (bypasses Trainer and works for quantized models)
+    nlp_pipeline = pipeline(
+        "text-classification",
         model=model,
-        args=training_args,
-        eval_dataset=tokenized_test,
-        compute_metrics=compute_metrics,
+        tokenizer=tokenizer,
+        # device=0 if torch.cuda.is_available() else -1,  # auto-select device
+        truncation=True,
+        padding=True,
     )
 
-    return trainer.evaluate()
+    # Perform batch inference
+    predictions = nlp_pipeline(test_df["text"].tolist(), batch_size=8)
+
+    # Extract predicted labels
+    pred_labels = [int(p["label"].split("_")[-1]) if "label" in p else 0 for p in predictions]
+    true_labels = test_df["label"].tolist()
+
+    # Calculate metrics
+    metrics = {
+        "accuracy": accuracy_score(true_labels, pred_labels),
+        "f1": f1_score(true_labels, pred_labels, average="weighted"),
+        "precision": precision_score(true_labels, pred_labels, average="weighted"),
+        "recall": recall_score(true_labels, pred_labels, average="weighted"),
+    }
+
+    return metrics
