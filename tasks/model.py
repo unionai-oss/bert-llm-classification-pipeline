@@ -242,9 +242,17 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     from datasets import Dataset
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
     from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+    from sklearn.metrics import confusion_matrix, roc_curve, auc
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import base64
+    from union import current_context
+    from union import Deck
+    from textwrap import dedent
 
     # Download model locally
     local_model_dir = trained_model_dir.download()
+    ctx = current_context()
 
     # Load model and tokenizer
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -280,6 +288,65 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
         "f1": f1_score(true_labels, pred_labels, average="weighted"),
         "precision": precision_score(true_labels, pred_labels, average="weighted"),
         "recall": recall_score(true_labels, pred_labels, average="weighted"),
+        # "conf_matrix": confusion_matrix(true_labels, pred_labels)
     }
+
+    # create visualization deck
+    deck = Deck("Model Evaluation")
+
+    # Generate Confusion Matrix
+    cm = confusion_matrix(true_labels, pred_labels)
+    cm_path = f"/tmp/confusion_matrix.png"
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=sorted(set(true_labels)), yticklabels=sorted(set(true_labels)))
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.title("Confusion Matrix")
+    plt.savefig(cm_path)
+    plt.close()
+    
+    # # Generate ROC Curve
+    # if len(set(true_labels)) == 2:  # Only for binary classification
+    #     fpr, tpr, _ = roc_curve(true_labels, probs[:, 1])
+    #     roc_auc = auc(fpr, tpr)
+    #     roc_path = f"tmp/roc_curve.png"
+    #     plt.figure(figsize=(8, 6))
+    #     plt.plot(fpr, tpr, color='blue', lw=2, label=f'ROC curve (area = {roc_auc:.2f}')
+    #     plt.plot([0, 1], [0, 1], color='grey', linestyle='--')
+    #     plt.xlim([0.0, 1.0])
+    #     plt.ylim([0.0, 1.05])
+    #     plt.xlabel('False Positive Rate')
+    #     plt.ylabel('True Positive Rate')
+    #     plt.title('Receiver Operating Characteristic')
+    #     plt.legend(loc="lower right")
+    #     plt.savefig(roc_path)
+    #     plt.close()
+    # else:
+    #     roc_path = None
+    
+    # Convert images to base64 for embedding
+    def image_to_base64(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+        
+    cm_image_base64 = image_to_base64(cm_path)
+    # roc_image_base64 = image_to_base64(roc_path) if roc_path else None
+
+    # Create HTML report
+    html_report = dedent(
+        f"""
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2 style="color: #2C3E50;">Dataset Analysis</h2>
+
+        <h3 style="color: #2980B9;">Training Data Summary</h3>
+        <img src="data:image/png;base64,{cm_image_base64}" alt="Train Data Label Distribution" width="600">
+    </div>
+        """)
+
+     # Append HTML content to the deck
+    deck.append(html_report)
+    # Insert the deck into the context
+    ctx.decks.insert(0, deck)
+
 
     return metrics
