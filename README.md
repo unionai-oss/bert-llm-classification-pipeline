@@ -9,14 +9,26 @@ The quickest way to setup and the run the tutorial notebook is often using a hos
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
+Or you can follow the steps below to setup the project locally.
 
-### Sign up for Union account
+### Sign up for a Union account
 Serverless is the easiest way to get started with Union. You can sign up for a free account and $30 of credit at [Union Serverless](https://app.union.ai/signup). BYOC (Bring Your Own Cloud) is also available for more features and advanced users. [Schedule a demo](https://www.union.ai/contact) to learn more about Union BYOC.
 
-- Union Serverless Sign-up: 
+- Union Serverless Sign-up: https://www.union.ai/
 - Union BYOC: https://docs.union.ai/byoc/user-guide/union-overview#union-byoc
 
 Read more in the overview of Union Serverless and Union BYOC.
+
+### Clone the repository
+```bash
+git clone https://github.com/unionai-oss/bert-llm-classification-pipeline
+cd bert-llm-classification-pipeline
+```
+
+### Install dependencies
+```bash
+pip install -r requirements.txt
+```
 
 ### Authenticate to Union from CLI
 After you have signed up for Union, you can authenticate to Union from the CLI.
@@ -30,3 +42,29 @@ If on Union BYOC (Bring Your Own Cloud)
 Now your environment is setup to run the project on remotely Union.
 
 - [Autneticatoin docs](https://docs.union.ai/serverless/api-reference/union-cli#configure-the-union-cli)
+
+### Run through the tutorial notebook or run the pipeline from CLI.
+The tutorial notebook will guide you through the steps to fine-tune a BERT-LLM model on a classification task and serve the model using Union AI.
+
+```bash
+jupyter notebook tutorial.ipynb
+```
+
+Or you can run the steps for the training pipeline and serving from the CLI.
+
+Train the model:
+```bash
+```
+
+Serve the model:
+```bash
+```
+
+Run Batch Inference:
+```bash
+```
+
+Run Near Real-time Batch Inference with Actors:
+```bash
+```
+

@@ -15,7 +15,8 @@ from tasks.model import download_model, evaluate_model, train_model
 # ---------------------------
 @workflow
 def train_pipeline(
-    model_name: str = "bert-base-uncased",
+    tuning_method: str = "lora",  # options: "full", "lora", "qlora"
+    model_name: str = "distilbert-base-uncased",
     epochs: int = 3,
     extra_test_text: list[str] = [
         "This is a great movie!",
@@ -31,6 +32,7 @@ def train_pipeline(
     )
 
     trained_model_dir = train_model(
+        tuning_method=tuning_method,
         model_dir=saved_model_dir,
         train_dataset=train_dataset,
         val_dataset=val_dataset,

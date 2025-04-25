@@ -3,18 +3,14 @@ This file contains the tasks that are used to download, train and evaluate the m
 """
 
 from pathlib import Path
-
-from datasets import Dataset
 from flytekit.types.directory import FlyteDirectory
 from flytekit.types.file import FlyteFile
 from typing_extensions import Annotated
 from union import Artifact, Deck, Resources, current_context, task
-
 from containers import container_image
 
 # Define Artifact Specifications
 FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
-
 
 # ---------------------------
 # download model
@@ -26,14 +22,12 @@ FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_model(model_name: str) -> FlyteDirectory:
-    import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     working_dir = Path(current_context().working_directory)
     saved_model_dir = working_dir / "saved_model"
     saved_model_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load the model and tokenizer
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name,
         device_map="cpu",
@@ -42,17 +36,14 @@ def download_model(model_name: str) -> FlyteDirectory:
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    # Save model and tokenizer
-    model.save_pretrained(
-        saved_model_dir,
-    )
+    model.save_pretrained(saved_model_dir)
     tokenizer.save_pretrained(saved_model_dir)
 
     return FlyteDirectory(saved_model_dir)
 
 
 # ---------------------------
-# full fine-tune model
+# full/lora/qlora fine-tune model
 # ---------------------------
 @task(
     container_image=container_image,
@@ -63,9 +54,13 @@ def train_model(
     train_dataset: FlyteFile,
     val_dataset: FlyteFile,
     epochs: int = 3,
+    tuning_method: str = "lora",  # options: "full", "lora", "qlora"
+    lora_r: int = 8,
+    lora_alpha: int = 16,
+    lora_dropout: float = 0.1,
 ) -> Annotated[FlyteDirectory, FineTunedImdbModel]:
-
     import pandas as pd
+    import torch
     from datasets import Dataset
     from transformers import (
         AutoModelForSequenceClassification,
@@ -73,50 +68,165 @@ def train_model(
         Trainer,
         TrainingArguments,
     )
+    from peft import prepare_model_for_kbit_training
 
-    # Download the model directory locally
     local_model_dir = model_dir.download()
-
-    # Load model and tokenizer from saved directory
-    model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
-    tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
-
-    # Load datasets from CSV and limit for faster training during tutorial
     train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
     val_df = pd.read_csv(val_dataset.download()).sample(n=100, random_state=42)
 
-    # Convert DataFrames to Hugging Face datasets
-    train_dataset = Dataset.from_pandas(train_df)
-    val_dataset = Dataset.from_pandas(val_df)
+    train_dataset_hf = Dataset.from_pandas(train_df)
+    val_dataset_hf = Dataset.from_pandas(val_df)
 
-    # Tokenization and training logic
-    def tokenizer_function(examples):
-        return tokenizer(examples["text"], padding="max_length", truncation=True)
+    tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
-    tokenized_train_dataset = train_dataset.map(tokenizer_function)
-    tokenized_val_dataset = val_dataset.map(tokenizer_function)
+    def tokenizer_function(example):
+        return tokenizer(example["text"], padding="max_length", truncation=True)
+
+    tokenized_train = train_dataset_hf.map(tokenizer_function)
+    tokenized_val = val_dataset_hf.map(tokenizer_function)
+
+    if tuning_method == "qlora":
+        from transformers import BitsAndBytesConfig
+        # from peft.utils import prepare_model_for_kbit_training
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+            llm_int8_skip_modules=["classifier", "pre_classifier"],
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            local_model_dir,
+            quantization_config=bnb_config,
+            torch_dtype=torch.bfloat16,
+            # device_map="auto", # use this for most models if implemented
+        )
+
+
+        # model = prepare_model_for_kbit_training(model)
+
+        # # Convert quantized LoRA targets to bfloat16 so they can require gradients
+        # for name, module in model.named_modules():
+        #     if any(target in name for target in ["q_lin", "k_lin", "v_lin"]):
+        #         for param in module.parameters():
+        #             if not param.is_floating_point():
+        #                 param.data = param.data.to(torch.bfloat16)
+
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
+
+    if tuning_method in {"lora", "qlora"}:
+        from peft import get_peft_model, LoraConfig, TaskType
+        lora_config = LoraConfig(
+            task_type=TaskType.SEQ_CLS,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            target_modules=["q_lin", "k_lin", "v_lin"],
+        )
+
+        # if tuning_method == "qlora":
+        #     # Ensure LoRA target modules are in float dtype, not int4
+        #     for name, module in model.named_modules():
+        #         if any(target in name for target in ["q_lin", "k_lin", "v_lin"]):
+        #             module.to(torch.bfloat16)
+
+        model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(
-        output_dir="./results", num_train_epochs=epochs, evaluation_strategy="epoch"
+        output_dir="./results",
+        num_train_epochs=epochs,
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_dir="./logs",
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
     )
 
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_train_dataset,
-        eval_dataset=tokenized_val_dataset,
+        train_dataset=tokenized_train,
+        eval_dataset=tokenized_val,
     )
 
     trainer.train()
 
-    # Save the trained model
+    # Merge LoRA weights into base model
+    if tuning_method in {"lora", "qlora"}:
+        model = model.merge_and_unload()
+
     output_dir = Path(current_context().working_directory) / "trained_model"
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    # return FlyteDirectory(output_dir)
+    #TODO: Save traning type (lora, qlora, full) as artifacts
     return FineTunedImdbModel.create_from(output_dir)
 
+
+# ---------------------------
+# evaluate model
+# ---------------------------
+# @task(
+#     container_image=container_image,
+#     enable_deck=True,
+#     requests=Resources(cpu="2", mem="12Gi", gpu="1"),
+# )
+# def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -> dict:
+#     import numpy as np
+#     import pandas as pd
+#     from datasets import Dataset
+#     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+#     from transformers import (
+#         AutoModelForSequenceClassification,
+#         AutoTokenizer,
+#         Trainer,
+#         TrainingArguments,
+#     )
+
+#     local_model_dir = trained_model_dir.download()
+#     model = AutoModelForSequenceClassification.from_pretrained(local_model_dir,
+#                                                                 torch_dtype="auto",
+#                                                                 load_in_4bit=False, 
+#                                                                 # device_map="auto",
+#                                                                 )
+#     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
+
+#     test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
+#     test_dataset_hf = Dataset.from_pandas(test_df)
+
+#     def tokenize_function(examples):
+#         return tokenizer(examples["text"], padding="max_length", truncation=True)
+
+#     tokenized_test = test_dataset_hf.map(tokenize_function)
+
+#     def compute_metrics(eval_pred):
+#         logits, labels = eval_pred
+#         predictions = np.argmax(logits, axis=-1)
+#         return {
+#             "accuracy": accuracy_score(labels, predictions),
+#             "f1": f1_score(labels, predictions, average="weighted"),
+#             "precision": precision_score(labels, predictions, average="weighted"),
+#             "recall": recall_score(labels, predictions, average="weighted"),
+#         }
+
+#     training_args = TrainingArguments(
+#         output_dir="./results",
+#         per_device_eval_batch_size=16,
+#         dataloader_drop_last=False,
+#     )
+
+#     trainer = Trainer(
+#         model=model,
+#         args=training_args,
+#         eval_dataset=tokenized_test,
+#         compute_metrics=compute_metrics,
+#     )
+
+#     return trainer.evaluate()
 
 # ---------------------------
 # evaluate model
@@ -131,58 +241,115 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     import pandas as pd
     from datasets import Dataset
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-    from transformers import (
-        AutoModelForSequenceClassification,
-        AutoTokenizer,
-        Trainer,
-        TrainingArguments,
-    )
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+    from sklearn.metrics import confusion_matrix, roc_curve, auc
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import base64
+    from union import current_context
+    from union import Deck
+    from textwrap import dedent
 
-    # Download the model directory locally
+    # Download model locally
     local_model_dir = trained_model_dir.download()
+    ctx = current_context()
 
-    # Load model and tokenizer from the saved directory
-    model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
+    # Load model and tokenizer
+    model = AutoModelForSequenceClassification.from_pretrained(
+        local_model_dir,
+        torch_dtype="auto",
+        load_in_4bit=False,  # Important: for evaluation, avoid loading in quantized 4-bit unless you really want to
+    )
     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
-    # Load and prepare test dataset
-    # test_df = pd.read_csv(test_dataset.download())
+    # Load and prepare the test dataset
     test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
 
-    test_dataset = Dataset.from_pandas(test_df)
-
-    def tokenize_function(examples):
-        return tokenizer(examples["text"], padding="max_length", truncation=True)
-
-    tokenized_test_dataset = test_dataset.map(tokenize_function)
-
-    def compute_metrics(eval_pred):
-        logits, labels = eval_pred
-        predictions = np.argmax(logits, axis=-1)
-        accuracy = accuracy_score(labels, predictions)
-        f1 = f1_score(labels, predictions, average="weighted")
-        precision = precision_score(labels, predictions, average="weighted")
-        recall = recall_score(labels, predictions, average="weighted")
-        return {
-            "accuracy": accuracy,
-            "f1": f1,
-            "precision": precision,
-            "recall": recall,
-        }
-
-    training_args = TrainingArguments(
-        output_dir="./results",
-        per_device_eval_batch_size=16,
-        dataloader_drop_last=False,
-    )
-
-    trainer = Trainer(
+    # Use a pipeline for evaluation (bypasses Trainer and works for quantized models)
+    nlp_pipeline = pipeline(
+        "text-classification",
         model=model,
-        args=training_args,
-        eval_dataset=tokenized_test_dataset,
-        compute_metrics=compute_metrics,
+        tokenizer=tokenizer,
+        # device=0 if torch.cuda.is_available() else -1,  # auto-select device
+        truncation=True,
+        padding=True,
     )
 
-    eval_results = trainer.evaluate()
+    # Perform batch inference
+    predictions = nlp_pipeline(test_df["text"].tolist(), batch_size=8)
 
-    return eval_results
+    # Extract predicted labels
+    pred_labels = [int(p["label"].split("_")[-1]) if "label" in p else 0 for p in predictions]
+    true_labels = test_df["label"].tolist()
+
+    # Calculate metrics
+    metrics = {
+        "accuracy": accuracy_score(true_labels, pred_labels),
+        "f1": f1_score(true_labels, pred_labels, average="weighted"),
+        "precision": precision_score(true_labels, pred_labels, average="weighted"),
+        "recall": recall_score(true_labels, pred_labels, average="weighted"),
+        # "conf_matrix": confusion_matrix(true_labels, pred_labels)
+    }
+
+    # create visualization deck
+    deck = Deck("Model Evaluation")
+
+    # Generate Confusion Matrix
+    cm = confusion_matrix(true_labels, pred_labels)
+    cm_path = f"/tmp/confusion_matrix.png"
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=sorted(set(true_labels)), yticklabels=sorted(set(true_labels)))
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.title("Confusion Matrix")
+    plt.savefig(cm_path)
+    plt.close()
+    
+    # # Generate ROC Curve
+    # if len(set(true_labels)) == 2:  # Only for binary classification
+    #     fpr, tpr, _ = roc_curve(true_labels, probs[:, 1])
+    #     roc_auc = auc(fpr, tpr)
+    #     roc_path = f"tmp/roc_curve.png"
+    #     plt.figure(figsize=(8, 6))
+    #     plt.plot(fpr, tpr, color='blue', lw=2, label=f'ROC curve (area = {roc_auc:.2f}')
+    #     plt.plot([0, 1], [0, 1], color='grey', linestyle='--')
+    #     plt.xlim([0.0, 1.0])
+    #     plt.ylim([0.0, 1.05])
+    #     plt.xlabel('False Positive Rate')
+    #     plt.ylabel('True Positive Rate')
+    #     plt.title('Receiver Operating Characteristic')
+    #     plt.legend(loc="lower right")
+    #     plt.savefig(roc_path)
+    #     plt.close()
+    # else:
+    #     roc_path = None
+    
+    # Convert images to base64 for embedding
+    def image_to_base64(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+        
+    cm_image_base64 = image_to_base64(cm_path)
+    # roc_image_base64 = image_to_base64(roc_path) if roc_path else None
+
+    # Create HTML report
+    html_report = dedent(
+        f"""
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2 style="color: #2C3E50;">Model Evaluation</h2>
+
+        <h3 style="color: #2980B9;">Confusion Matrix</h3>
+        <img src="data:image/png;base64,{cm_image_base64}" alt="Confusion Matrix" width="600">
+        <h3 style="color: #2980B9;">Model Metrics</h3>
+        <pre>{metrics}</pre>
+        
+    </div>
+        """)
+
+     # Append HTML content to the deck
+    deck.append(html_report)
+    # Insert the deck into the context
+    ctx.decks.insert(0, deck)
+
+
+    return metrics
