@@ -68,6 +68,7 @@ def train_model(
         Trainer,
         TrainingArguments,
     )
+    from peft import prepare_model_for_kbit_training
 
     local_model_dir = model_dir.download()
     train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
@@ -85,20 +86,32 @@ def train_model(
     tokenized_val = val_dataset_hf.map(tokenizer_function)
 
     if tuning_method == "qlora":
-        from peft.utils import BitsAndBytesConfig, prepare_model_for_kbit_training
+        from transformers import BitsAndBytesConfig
+        # from peft.utils import prepare_model_for_kbit_training
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
+            llm_int8_skip_modules=["classifier", "pre_classifier"],
         )
         model = AutoModelForSequenceClassification.from_pretrained(
             local_model_dir,
             quantization_config=bnb_config,
             torch_dtype=torch.bfloat16,
-            device_map="auto",
+            # device_map="cuda", # or "auto" for automatic device placement
         )
-        model = prepare_model_for_kbit_training(model)
+
+
+        # model = prepare_model_for_kbit_training(model)
+
+        # # Convert quantized LoRA targets to bfloat16 so they can require gradients
+        # for name, module in model.named_modules():
+        #     if any(target in name for target in ["q_lin", "k_lin", "v_lin"]):
+        #         for param in module.parameters():
+        #             if not param.is_floating_point():
+        #                 param.data = param.data.to(torch.bfloat16)
+
     else:
         model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
 
@@ -111,6 +124,13 @@ def train_model(
             lora_dropout=lora_dropout,
             target_modules=["q_lin", "k_lin", "v_lin"],
         )
+
+        # if tuning_method == "qlora":
+        #     # Ensure LoRA target modules are in float dtype, not int4
+        #     for name, module in model.named_modules():
+        #         if any(target in name for target in ["q_lin", "k_lin", "v_lin"]):
+        #             module.to(torch.bfloat16)
+
         model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(
@@ -143,6 +163,7 @@ def train_model(
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
+    #TODO: Save traning type (lora, qlora, full) as artifacts
     return FineTunedImdbModel.create_from(output_dir)
 
 
