@@ -15,7 +15,7 @@ from tasks.model import download_model, evaluate_model, train_model
 # ---------------------------
 @workflow
 def train_pipeline(
-    model_name: str = "bert-base-uncased",
+    model_name: str = "distilbert-base-uncased",
     epochs: int = 3,
     extra_test_text: list[str] = [
         "This is a great movie!",
