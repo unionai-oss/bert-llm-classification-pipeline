@@ -5,6 +5,7 @@ container_image = ImageSpec(
     requirements="requirements.txt",
     builder="union",
     apt_packages=["gcc", "g++"],
+    cuda="11.8",
 )
 
 actor = ActorEnvironment(

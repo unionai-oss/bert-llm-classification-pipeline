@@ -10,11 +10,26 @@ from flytekit.types.file import FlyteFile
 from typing_extensions import Annotated
 from union import Artifact, Deck, Resources, current_context, task
 
+import bitsandbytes as bnb
+from peft import LoraConfig, TaskType, get_peft_model
+from transformers import (AutoModelForSequenceClassification, AutoTokenizer,
+                          BitsAndBytesConfig, Trainer, TrainingArguments, EarlyStoppingCallback)
+
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
+
+import seaborn as sns
+import json
+import torch
+
+from peft import get_peft_model, LoraConfig, TaskType, prepare_model_for_kbit_training
+from peft import prepare_model_for_int8_training
+
+
 from containers import container_image
 
 # Define Artifact Specifications
 FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
-
+# PreTrainedBERTModel = Artifact(name="pre_trained_BERT_model")
 
 # ---------------------------
 # download model
@@ -26,9 +41,6 @@ FineTunedImdbModel = Artifact(name="fine_tuned_Imdb_model")
     requests=Resources(cpu="2", mem="2Gi"),
 )
 def download_model(model_name: str) -> FlyteDirectory:
-    import torch
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
     working_dir = Path(current_context().working_directory)
     saved_model_dir = working_dir / "saved_model"
     saved_model_dir.mkdir(parents=True, exist_ok=True)
@@ -63,6 +75,10 @@ def train_model(
     train_dataset: FlyteFile,
     val_dataset: FlyteFile,
     epochs: int = 3,
+    tuning_method: str = "lora",  # options: "full", "lora", "qlora"
+    lora_r: int = 8,
+    lora_alpha: int = 16,
+    lora_dropout: float = 0.1,
 ) -> Annotated[FlyteDirectory, FineTunedImdbModel]:
 
     import pandas as pd
@@ -74,12 +90,13 @@ def train_model(
         TrainingArguments,
     )
 
+    # ---- Data Preparation ----
     # Download the model directory locally
     local_model_dir = model_dir.download()
 
-    # Load model and tokenizer from saved directory
-    model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
-    tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
+    # # Load model and tokenizer from saved directory
+    # model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
+    # tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
     # Load datasets from CSV and limit for faster training during tutorial
     train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
@@ -89,15 +106,61 @@ def train_model(
     train_dataset = Dataset.from_pandas(train_df)
     val_dataset = Dataset.from_pandas(val_df)
 
+    # ---- Model Preparation ----
+    if tuning_method == "qlora":
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_dir,
+            quantization_config=bnb_config,
+            torch_dtype=torch.bfloat16,
+            device_map="auto"
+        )
+        model = prepare_model_for_kbit_training(model)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+
+    # Apply LoRA if needed
+    if tuning_method in {"lora", "qlora"}:
+        lora_config = LoraConfig(
+            task_type=TaskType.SEQ_CLS,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            target_modules=["q_lin", "k_lin", "v_lin"],  # adjust as needed for model
+        )
+        model = get_peft_model(model, lora_config)
+
+
+########
     # Tokenization and training logic
+    tokenizer = AutoTokenizer.from_pretrained(model_dir)
     def tokenizer_function(examples):
         return tokenizer(examples["text"], padding="max_length", truncation=True)
 
     tokenized_train_dataset = train_dataset.map(tokenizer_function)
     tokenized_val_dataset = val_dataset.map(tokenizer_function)
 
+    # training_args = TrainingArguments(
+    #     output_dir="./results", num_train_epochs=epochs, evaluation_strategy="epoch"
+    # )
+
+    # Training arguments
     training_args = TrainingArguments(
-        output_dir="./results", num_train_epochs=epochs, evaluation_strategy="epoch"
+        output_dir="./results",
+        num_train_epochs=epochs,
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_dir="./logs",
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
     )
 
     trainer = Trainer(
