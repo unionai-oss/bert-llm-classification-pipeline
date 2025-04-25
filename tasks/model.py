@@ -336,10 +336,13 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     html_report = dedent(
         f"""
     <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2 style="color: #2C3E50;">Dataset Analysis</h2>
+        <h2 style="color: #2C3E50;">Model Evaluation</h2>
 
-        <h3 style="color: #2980B9;">Training Data Summary</h3>
-        <img src="data:image/png;base64,{cm_image_base64}" alt="Train Data Label Distribution" width="600">
+        <h3 style="color: #2980B9;">Confusion Matrix</h3>
+        <img src="data:image/png;base64,{cm_image_base64}" alt="Confusion Matrix" width="600">
+        <h3 style="color: #2980B9;">Model Metrics</h3>
+        <pre>{metrics}</pre>
+        
     </div>
         """)
 
