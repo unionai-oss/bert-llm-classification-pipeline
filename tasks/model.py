@@ -71,8 +71,8 @@ def train_model(
     from peft import prepare_model_for_kbit_training
 
     local_model_dir = model_dir.download()
-    train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
-    val_df = pd.read_csv(val_dataset.download()).sample(n=100, random_state=42)
+    train_df = pd.read_csv(train_dataset.download()).sample(n=5000, random_state=42)
+    val_df = pd.read_csv(val_dataset.download()).sample(n=1000, random_state=42)
 
     train_dataset_hf = Dataset.from_pandas(train_df)
     val_dataset_hf = Dataset.from_pandas(val_df)
@@ -263,7 +263,7 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
     # Load and prepare the test dataset
-    test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
+    test_df = pd.read_csv(test_dataset.download()).sample(n=1000, random_state=42)
 
     # Use a pipeline for evaluation (bypasses Trainer and works for quantized models)
     nlp_pipeline = pipeline(
