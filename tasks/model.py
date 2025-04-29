@@ -102,16 +102,6 @@ def train_model(
             # device_map="auto", # use this for most models if implemented
         )
 
-
-        # model = prepare_model_for_kbit_training(model)
-
-        # # Convert quantized LoRA targets to bfloat16 so they can require gradients
-        # for name, module in model.named_modules():
-        #     if any(target in name for target in ["q_lin", "k_lin", "v_lin"]):
-        #         for param in module.parameters():
-        #             if not param.is_floating_point():
-        #                 param.data = param.data.to(torch.bfloat16)
-
     else:
         model = AutoModelForSequenceClassification.from_pretrained(local_model_dir)
 
@@ -167,66 +157,6 @@ def train_model(
     return FineTunedImdbModel.create_from(output_dir)
 
 
-# ---------------------------
-# evaluate model
-# ---------------------------
-# @task(
-#     container_image=container_image,
-#     enable_deck=True,
-#     requests=Resources(cpu="2", mem="12Gi", gpu="1"),
-# )
-# def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -> dict:
-#     import numpy as np
-#     import pandas as pd
-#     from datasets import Dataset
-#     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-#     from transformers import (
-#         AutoModelForSequenceClassification,
-#         AutoTokenizer,
-#         Trainer,
-#         TrainingArguments,
-#     )
-
-#     local_model_dir = trained_model_dir.download()
-#     model = AutoModelForSequenceClassification.from_pretrained(local_model_dir,
-#                                                                 torch_dtype="auto",
-#                                                                 load_in_4bit=False, 
-#                                                                 # device_map="auto",
-#                                                                 )
-#     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
-
-#     test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
-#     test_dataset_hf = Dataset.from_pandas(test_df)
-
-#     def tokenize_function(examples):
-#         return tokenizer(examples["text"], padding="max_length", truncation=True)
-
-#     tokenized_test = test_dataset_hf.map(tokenize_function)
-
-#     def compute_metrics(eval_pred):
-#         logits, labels = eval_pred
-#         predictions = np.argmax(logits, axis=-1)
-#         return {
-#             "accuracy": accuracy_score(labels, predictions),
-#             "f1": f1_score(labels, predictions, average="weighted"),
-#             "precision": precision_score(labels, predictions, average="weighted"),
-#             "recall": recall_score(labels, predictions, average="weighted"),
-#         }
-
-#     training_args = TrainingArguments(
-#         output_dir="./results",
-#         per_device_eval_batch_size=16,
-#         dataloader_drop_last=False,
-#     )
-
-#     trainer = Trainer(
-#         model=model,
-#         args=training_args,
-#         eval_dataset=tokenized_test,
-#         compute_metrics=compute_metrics,
-#     )
-
-#     return trainer.evaluate()
 
 # ---------------------------
 # evaluate model
