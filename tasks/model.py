@@ -68,8 +68,6 @@ def train_model(
         Trainer,
         TrainingArguments,
     )
-    from peft import prepare_model_for_kbit_training
-
     local_model_dir = model_dir.download()
     train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
     val_df = pd.read_csv(val_dataset.download()).sample(n=100, random_state=42)
@@ -87,7 +85,6 @@ def train_model(
 
     if tuning_method == "qlora":
         from transformers import BitsAndBytesConfig
-        # from peft.utils import prepare_model_for_kbit_training
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
