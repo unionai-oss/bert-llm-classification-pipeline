@@ -71,8 +71,8 @@ def train_model(
     from peft import prepare_model_for_kbit_training
 
     local_model_dir = model_dir.download()
-    train_df = pd.read_csv(train_dataset.download()).sample(n=5000, random_state=42)
-    val_df = pd.read_csv(val_dataset.download()).sample(n=1000, random_state=42)
+    train_df = pd.read_csv(train_dataset.download()).sample(n=500, random_state=42)
+    val_df = pd.read_csv(val_dataset.download()).sample(n=100, random_state=42)
 
     train_dataset_hf = Dataset.from_pandas(train_df)
     val_dataset_hf = Dataset.from_pandas(val_df)
@@ -114,13 +114,7 @@ def train_model(
             lora_dropout=lora_dropout,
             target_modules=["q_lin", "k_lin", "v_lin"],
         )
-
-        # if tuning_method == "qlora":
-        #     # Ensure LoRA target modules are in float dtype, not int4
-        #     for name, module in model.named_modules():
-        #         if any(target in name for target in ["q_lin", "k_lin", "v_lin"]):
-        #             module.to(torch.bfloat16)
-
+ 
         model = get_peft_model(model, lora_config)
 
     training_args = TrainingArguments(

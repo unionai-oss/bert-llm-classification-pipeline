@@ -19,6 +19,7 @@ image_spec = ImageSpec(
         "union-runtime>=0.1.11",
         "accelerate==1.5.2",
         "streamlit==1.43.2",
+        "bitsandbytes==0.45.3"
     ],
     builder="union",
     registry=os.getenv("REGISTRY"),
