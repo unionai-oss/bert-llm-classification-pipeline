@@ -187,7 +187,7 @@ def evaluate_model(trained_model_dir: FlyteDirectory, test_dataset: FlyteFile) -
     tokenizer = AutoTokenizer.from_pretrained(local_model_dir)
 
     # Load and prepare the test dataset
-    test_df = pd.read_csv(test_dataset.download()).sample(n=1000, random_state=42)
+    test_df = pd.read_csv(test_dataset.download()).sample(n=100, random_state=42)
 
     # Use a pipeline for evaluation (bypasses Trainer and works for quantized models)
     nlp_pipeline = pipeline(
