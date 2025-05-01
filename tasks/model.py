@@ -54,7 +54,7 @@ def train_model(
     train_dataset: FlyteFile,
     val_dataset: FlyteFile,
     epochs: int = 3,
-    tuning_method: str = "lora",  # options: "full", "lora", "qlora"
+    tuning_method: str = "full",  # options: "full", "lora", "qlora"
     lora_r: int = 8,
     lora_alpha: int = 16,
     lora_dropout: float = 0.1,
@@ -109,7 +109,7 @@ def train_model(
             r=lora_r,
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
-            target_modules=["q_lin", "k_lin", "v_lin"],
+            target_modules=["q_lin", "k_lin", "v_lin"], # query, Key, Value linear layers in this model
         )
  
         model = get_peft_model(model, lora_config)
