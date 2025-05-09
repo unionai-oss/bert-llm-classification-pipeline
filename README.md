@@ -12,7 +12,7 @@ The quickest way to setup and the run the tutorial notebook is often using a hos
 Or you can follow the steps below to setup the project locally.
 
 ### Sign up for a Union account
-Serverless is the easiest way to get started with Union. You can sign up for a free account and $30 of credit at [Union Serverless](https://app.union.ai/signup). BYOC (Bring Your Own Cloud) is also available for more features and advanced users. [Schedule a demo](https://www.union.ai/contact) to learn more about Union BYOC.
+Serverless is the easiest way to get started with Union. You can sign up for a free account and $30 of credit at [Union Serverless](https://signup.union.ai/?page=signup). BYOC (Bring Your Own Cloud) is also available for more features and advanced users. [Schedule a demo](https://www.union.ai/contact) to learn more about Union BYOC.
 
 - Union Serverless Sign-up: https://www.union.ai/
 - Union BYOC: https://docs.union.ai/byoc/user-guide/union-overview#union-byoc
