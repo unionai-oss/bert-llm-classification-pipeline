@@ -54,17 +54,13 @@ Or you can run the steps for the training pipeline and serving from the CLI.
 
 Train the model:
 ```bash
+# 🌟 Run the bert training pipeline using lora, qlora or full
+union run --remote workflows/train_pipeline.py train_pipeline --epochs 3 --tuning_method full 
 ```
 
 Serve the model:
 ```bash
+union deploy apps app.py bert-sentiment-analysis
 ```
 
-Run Batch Inference:
-```bash
-```
-
-Run Near Real-time Batch Inference with Actors:
-```bash
-```
 
