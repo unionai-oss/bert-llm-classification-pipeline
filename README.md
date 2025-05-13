@@ -1,5 +1,10 @@
 # BERT-LLM Classification Fine-Tuning and Serving Pipeline
 
+
+<a target="_blank" href="https://colab.research.google.com/github/unionai-oss/bert-llm-classification-pipeline/blob/main/tutorial.ipynb">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+</a>
+
 This repository contains a pipeline for fine-tuning a BERT-LLM model on a classification task and serving the model using the Union AI workflow and inference platform. 
 
 ## Project Setup
@@ -14,7 +19,7 @@ Or you can follow the steps below to setup the project locally.
 ### Sign up for a Union account
 Serverless is the easiest way to get started with Union. You can sign up for a free account and $30 of credit at [Union Serverless](https://signup.union.ai/?page=signup). BYOC (Bring Your Own Cloud) is also available for more features and advanced users. [Schedule a demo](https://www.union.ai/contact) to learn more about Union BYOC.
 
-- Union Serverless Sign-up: https://www.union.ai/
+- Union Serverless Sign-up: https://www.union.ai/ (Click login and then Sign up)
 - Union BYOC: https://docs.union.ai/byoc/user-guide/union-overview#union-byoc
 
 Read more in the overview of Union Serverless and Union BYOC.
